@@ -767,28 +767,23 @@ define([
         
         <div class="card">
             <h3>🔍 Record Lookup</h3>
-            <form action="${scriptUrl}" method="GET" id="mainForm">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="recordtype">Record Type</label>
-                        <input type="text" id="recordtype" name="recordtype" value="${
-                          recordType || ""
-                        }" required placeholder="e.g., salesorder, customer, transaction">
-                    </div>
-                    <div class="form-group">
-                        <label for="recordid">Record ID</label>
-                        <input type="text" id="recordid" name="recordid" value="${
-                          recordId || ""
-                        }" required placeholder="e.g., 12345">
-                    </div>
-                    <div class="form-group" style="flex: 0 0 auto; align-self: flex-end;">
-                        <button type="submit">View Record</button>
-                    </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="recordtype">Record Type</label>
+                    <input type="text" id="recordtype" name="recordtype" value="${
+                      recordType || ""
+                    }" placeholder="e.g., salesorder, customer, transaction">
                 </div>
-                <input type="hidden" name="darkMode" id="darkModeInput" value="${
-                  darkMode || "false"
-                }">
-            </form>
+                <div class="form-group">
+                    <label for="recordid">Record ID</label>
+                    <input type="text" id="recordid" name="recordid" value="${
+                      recordId || ""
+                    }" placeholder="e.g., 12345">
+                </div>
+                <div class="form-group" style="flex: 0 0 auto; align-self: flex-end;">
+                    <button id="viewRecordBtn">View Record</button>
+                </div>
+            </div>
         </div>
 
         ${
@@ -832,9 +827,7 @@ define([
                 <button id="copyJson" class="button">📋 Copy JSON</button>
                 <button id="downloadJson" class="button">💾 Download JSON</button>
                 <button id="downloadCsv" class="button-secondary">📊 Export CSV</button>
-                <a href="${scriptUrl}?recordtype=${recordType}&recordid=${recordId}&format=json" target="_blank" class="button">
-                    🔗 Raw JSON
-                </a>
+                <button id="openRawJson" class="button">🔗 Raw JSON</button>
             </div>
             
             <div class="tab-container">
@@ -915,14 +908,45 @@ define([
     
     <script>
     (function() {
+        // View Record button handler
+        const viewRecordBtn = document.getElementById('viewRecordBtn');
+        if (viewRecordBtn) {
+            viewRecordBtn.addEventListener('click', function() {
+                const recordType = document.getElementById('recordtype').value.trim();
+                const recordId = document.getElementById('recordid').value.trim();
+                
+                if (!recordType || !recordId) {
+                    showNotification('⚠️ Please enter both Record Type and Record ID', 'warning');
+                    return;
+                }
+                
+                const darkModeEnabled = document.body.classList.contains('dark-mode');
+                const url = '${scriptUrl}?recordtype=' + encodeURIComponent(recordType) + 
+                           '&recordid=' + encodeURIComponent(recordId) +
+                           '&darkMode=' + (darkModeEnabled ? 'true' : 'false');
+                
+                window.location.href = url;
+            });
+            
+            // Allow Enter key to trigger view
+            ['recordtype', 'recordid'].forEach(function(id) {
+                const input = document.getElementById(id);
+                if (input) {
+                    input.addEventListener('keypress', function(e) {
+                        if (e.key === 'Enter') {
+                            viewRecordBtn.click();
+                        }
+                    });
+                }
+            });
+        }
+        
         // Dark mode toggle
         const darkModeToggle = document.getElementById('darkModeToggle');
-        const darkModeInput = document.getElementById('darkModeInput');
         
         if (darkModeToggle) {
             darkModeToggle.addEventListener('change', function() {
                 document.body.classList.toggle('dark-mode');
-                darkModeInput.value = this.checked ? 'true' : 'false';
                 localStorage.setItem('nsRecordViewerDarkMode', this.checked);
             });
         }
@@ -953,9 +977,31 @@ define([
                 const jsonData = ${JSON.stringify(jsonDataStr)};
                 navigator.clipboard.writeText(jsonData).then(function() {
                     showNotification('✅ JSON copied to clipboard!', 'success');
-                }, function() {
-                    showNotification('❌ Failed to copy to clipboard', 'danger');
+                }, function(err) {
+                    // Fallback for older browsers
+                    const textArea = document.createElement('textarea');
+                    textArea.value = jsonData;
+                    textArea.style.position = 'fixed';
+                    textArea.style.left = '-9999px';
+                    document.body.appendChild(textArea);
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        showNotification('✅ JSON copied to clipboard!', 'success');
+                    } catch (err) {
+                        showNotification('❌ Failed to copy to clipboard', 'danger');
+                    }
+                    document.body.removeChild(textArea);
                 });
+            });
+        }
+
+        // Open Raw JSON button
+        const openRawJsonBtn = document.getElementById('openRawJson');
+        if (openRawJsonBtn) {
+            openRawJsonBtn.addEventListener('click', function() {
+                const url = '${scriptUrl}?recordtype=${recordType}&recordid=${recordId}&format=json';
+                window.open(url, '_blank');
             });
         }
 
@@ -1036,15 +1082,30 @@ define([
         const compareBtn = document.getElementById('compareBtn');
         if (compareBtn) {
             compareBtn.addEventListener('click', function() {
-                const compareId = document.getElementById('compareId').value;
-                if (compareId) {
-                    window.location.href = '${scriptUrl}?recordtype=${recordType}&recordid=${recordId}&compareid=' + compareId + '&darkMode=${
-      darkMode || "false"
-    }';
-                } else {
+                const compareId = document.getElementById('compareId').value.trim();
+                
+                if (!compareId) {
                     showNotification('⚠️ Please enter a record ID to compare', 'warning');
+                    return;
                 }
+                
+                const darkModeEnabled = document.body.classList.contains('dark-mode');
+                const url = '${scriptUrl}?recordtype=${recordType}&recordid=${recordId}&compareid=' + 
+                           encodeURIComponent(compareId) + 
+                           '&darkMode=' + (darkModeEnabled ? 'true' : 'false');
+                
+                window.location.href = url;
             });
+            
+            // Allow Enter key to trigger compare
+            const compareInput = document.getElementById('compareId');
+            if (compareInput) {
+                compareInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        compareBtn.click();
+                    }
+                });
+            }
         }
 
         // Initialize field browser
